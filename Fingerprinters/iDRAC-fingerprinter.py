@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*- 
 r'''
 	Copyright 2024 Photubias(c)
+    Copyright (C) 2026 a7mz1
 
         This program is free software: you can redistribute it and/or modify
         it under the terms of the GNU General Public License as published by
@@ -14,22 +15,16 @@ r'''
         GNU General Public License for more details.
 
         You should have received a copy of the GNU General Public License
-        along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-        This should work on Linux & Windows using Python3
-        Only requires "pip install requests"
-        
-        File name iDRAC-fingerprinter.py
-        written by Photubias
-
-        --- Dell iDRAC Fingerprinter ---
-        integrated Dell Remote Access Controller
-        This script tries to detect the iDRAC version, currently only works for iDRAC7+ (iDRAC6 does not allow firmware enumeration)
-        --> If more are available for a test, they will be added        
+        along with this program.  If not, see <http://www.gnu.org/licenses/>.    
 '''
-import optparse, requests, json, datetime, os
+import optparse
+import requests
+import json
+import datetime
+import os
 from multiprocessing.dummy import Pool as ThreadPool
 from itertools import repeat
+
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 requests.warnings.filterwarnings('ignore', category=DeprecationWarning) 
 
@@ -54,15 +49,19 @@ def fingerPrint(listArgs):
         oSession = requests.Session()
         oSession.mount('https://', CustomHTTPAdapter())
         try:
-            if sProxy: oResponse = oSession.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
-            else: oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
+            if sProxy:
+                oResponse = oSession.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
+            else:
+                oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
             return oResponse
         except:
             return None
     def getPageOrg(sURL):
         try:
-            if sProxy: oResponse = requests.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
-            else: oResponse = requests.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
+            if sProxy:
+                oResponse = requests.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
+            else:
+                oResponse = requests.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
             return oResponse
         except:
             return None
@@ -94,29 +93,36 @@ def fingerPrint(listArgs):
                     sHostname = sLine.split('"')[1].strip()
                 elif 'integrated dell remote access controller 6' in sLine.lower(): 
                     sLicense = sLine.split(r'- ')[1].split(r'<')[0]
-            if boolExport: _lstToWrite.append(f'{sIP};iDRAC6 {sLicense};{sSystem};{sHostname};{sFWversion}\n')
+            if boolExport:
+                _lstToWrite.append(f'{sIP};iDRAC6 {sLicense};{sSystem};{sHostname};{sFWversion}\n')
             print('[+] {}: {} (iDRAC6 {}, Firmware {})'.format(sIP, sHostname, sLicense, sFWversion))
         return
     ## iDRAC 7 & 8 attempt
     oResponse = getPage(sURL + '/data?get=prodServerGen')
     if oResponse and oResponse.status_code == 200:
         try:
-            if '12g' in oResponse.text.lower(): sIDRACVersion = 'iDRAC7'
-            else: sIDRACVersion = 'iDRAC8'
+            if '12g' in oResponse.text.lower():
+                sIDRACVersion = 'iDRAC7'
+            else:
+                sIDRACVersion = 'iDRAC8'
             oResponse = getPage(sURL + '/data?get=prodClassName')
             sLicense = oResponse.text.split(r'<prodClassName>')[1].split(r'</prodClassName>')[0]
             oResponse = getPage(sURL + '/session?aimGetProp=hostname,gui_str_title_bar,OEMHostName,fwVersion,sysDesc')
             if oResponse:
                 oJson = json.loads(oResponse.text)['aimGetProp']
-                if boolVerbose: print(oJson)
+                if boolVerbose:
+                    print(oJson)
                 sHostname = oJson['hostname']
                 sFWversion = oJson['fwVersion']
                 sSystem = oJson['sysDesc']
-                if boolExport: _lstToWrite.append(f'{sIP};{sIDRACVersion} {sLicense};{sSystem};{sHostname};{sFWversion}\n')
+                if boolExport:
+                    _lstToWrite.append(f'{sIP};{sIDRACVersion} {sLicense};{sSystem};{sHostname};{sFWversion}\n')
                 print('[+] {}: {} ({}, {} {}, Firmware v{})'.format(sIP, sHostname, sSystem, sIDRACVersion, sLicense, sFWversion))
-                if boolVulns: getVulns(sHostname, '{} {}'.format(sIDRACVersion, sLicense), sFWversion, sIP, sSystem)
+                if boolVulns:
+                    getVulns(sHostname, '{} {}'.format(sIDRACVersion, sLicense), sFWversion, sIP, sSystem)
                 return
-        except: return
+        except:
+            return
 
     ## iDRAC 9 attempt
     oResponse = getPage(sURL + '/restgui/locale/strings/locale_str_en.json')
@@ -129,17 +135,23 @@ def fingerPrint(listArgs):
                 sEndpoint = getBMCInfo(sResult)
                 oResponse = getPage(sURL + sEndpoint)
                 oJson = json.loads(oResponse.text)['Attributes']
-                if boolVerbose: print(oJson)
+                if boolVerbose:
+                    print(oJson)
                 sHostname = oJson['iDRACName']
-                if not 'FwVer' in oJson: sFWversion = getFWViaRedfish(sURL)
-                else: sFWversion = oJson['FwVer']
+                if not 'FwVer' in oJson:
+                    sFWversion = getFWViaRedfish(sURL)
+                else:
+                    sFWversion = oJson['FwVer']
                 sSystem = oJson['SystemModelName']
                 sLicense = oJson['License']
-                if boolExport: _lstToWrite.append(f'{sIP};iDRAC9 {sLicense};{sSystem};{sHostname};{sFWversion}\n')
+                if boolExport:
+                    _lstToWrite.append(f'{sIP};iDRAC9 {sLicense};{sSystem};{sHostname};{sFWversion}\n')
                 print('[+] {}: {} ({}, iDRAC9 {}, Firmware v{})'.format(sIP, sHostname, sSystem, sLicense, sFWversion))
-                if boolVulns: getVulns(sHostname, 'iDRAC9 {}'.format(sLicense), sFWversion, sIP, sSystem)
+                if boolVulns:
+                    getVulns(sHostname, 'iDRAC9 {}'.format(sLicense), sFWversion, sIP, sSystem)
                 return
-        except: return
+        except:
+            return
 
 def getIPs(cidr):
     def ip2bin(ip):
@@ -158,17 +170,21 @@ def getIPs(cidr):
     def dec2bin(n,d=None):
         s = ''
         while n>0:
-            if n&1: s = '1' + s
-            else: s = '0' + s
+            if n&1:
+                s = '1' + s
+            else:
+                s = '0' + s
             n >>= 1
         if d is not None:
             while len(s)<d: s = '0' + s
-        if s == '': s = '0'
+        if s == '':
+            s = '0'
         return s
 
     def bin2ip(b):
         ip = ''
-        for i in range(0,len(b),8): ip += str(int(b[i:i+8],2)) + '.'
+        for i in range(0,len(b),8):
+            ip += str(int(b[i:i+8],2)) + '.'
         return ip[:-1]
 
     iplist=[]
@@ -182,7 +198,8 @@ def getIPs(cidr):
         iplist.append(bin2ip(baseIP))
     else:
         ipPrefix = baseIP[:-(32-subnet)]
-        for i in range(2**(32-subnet)): iplist.append(bin2ip(ipPrefix+dec2bin(i, (32-subnet))))
+        for i in range(2**(32-subnet)):
+            iplist.append(bin2ip(ipPrefix+dec2bin(i, (32-subnet))))
     return iplist
 
 def verifyCVE_2018_1207(sIP, boolExploit = False, sProxy = None):
@@ -192,16 +209,20 @@ def verifyCVE_2018_1207(sIP, boolExploit = False, sProxy = None):
     dicNewHeaders['Accept'] = ''
     oSession = requests.Session()
     oSession.mount('https://', CustomHTTPAdapter())
-    if sProxy: oResponse = oSession.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
-    else: oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
-    if 'calling init: /lib/' in oResponse.text: print(f'  [!!] {sIP} is definitely vulnerable and can be exploited: {sURL}')
+    if sProxy:
+        oResponse = oSession.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
+    else:
+        oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
+    if 'calling init: /lib/' in oResponse.text:
+        print(f'  [!!] {sIP} is definitely vulnerable and can be exploited: {sURL}')
     return
 
 def getIPsFromFile(sFile):
     lstLines = open(sFile,'r').read().splitlines()
     lstIPs = []
     for sLine in lstLines: ## Line can be an IP or a CIDR
-        for sIP in getIPs(sLine): lstIPs.append(sIP)
+        for sIP in getIPs(sLine):
+            lstIPs.append(sIP)
     return lstIPs
 
 ### Vuln checking based on buildnumbers
@@ -215,12 +236,15 @@ def getVulns(sName, sVersion, sFWversion, sIP, sSystem): ##sHostname, 'iDRAC9 {}
     sVuln = '  [!] ' + sIP + ' is vulnerable to CVE-2018-1207, Code Injection Vulnerability (RCE)'
     boolCVE20181207 = False
     if '8' in sVersion or '7' in sVersion:
-        if int(sFWversion.split('.')[0])>2: return
-        elif int(sFWversion.split('.')[1])>52: return
+        if int(sFWversion.split('.')[0])>2:
+            return
+        elif int(sFWversion.split('.')[1])>52:
+            return
         else: 
             print(sVuln)
             boolCVE20181207 = True
-    if boolCVE20181207: verifyCVE_2018_1207(sIP, boolExploit=False)
+    if boolCVE20181207:
+        verifyCVE_2018_1207(sIP, boolExploit=False)
     return
 
 def writeFile(lstToWrite, sFilename):
@@ -246,7 +270,8 @@ def main():
     #args.append('172.16.30.47')
     if not args or not len(args) == 1:
         sCIDR = input('[?] Please enter the subnet or IP to scan [192.168.50.0/24] : ')
-        if sCIDR == '': sCIDR = '192.168.50.0/24'
+        if sCIDR == '':
+            sCIDR = '192.168.50.0/24'
         lstIPs = getIPs(sCIDR)
     else:
         if os.path.isfile(args[0]):
@@ -257,7 +282,8 @@ def main():
     oPool = ThreadPool(int(options.threads))
     print('[!] Scanning {} addresses using up to {} threads.'.format(len(lstIPs), options.threads))
     oPool.map(fingerPrint, zip(lstIPs, repeat(options.verbose), repeat(options.proxy), repeat(options.vulns), repeat(options.export)))
-    if options.export: writeFile(_lstToWrite, sExportFileName)
+    if options.export:
+        writeFile(_lstToWrite, sExportFileName)
     return
 
 if __name__ == '__main__':
