@@ -45,25 +45,19 @@ class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
         super().init_poolmanager(*args, **kwargs, ssl_context=context)
 
 def fingerPrint(listArgs):
-    (sIP, boolVerbose, sProxy, boolVulns, boolExport) = listArgs
+    (sIP, boolVerbose, boolVulns, boolExport) = listArgs
     global _lstToWrite
     def getPage(sURL): ## Works on older SSLv3 systems
         oSession = requests.Session()
         oSession.mount('https://', CustomHTTPAdapter())
         try:
-            if sProxy:
-                oResponse = oSession.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
-            else:
-                oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
+            oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
             return oResponse
         except:
             return None
     def getPageOrg(sURL):
         try:
-            if sProxy:
-                oResponse = requests.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
-            else:
-                oResponse = requests.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
+            oResponse = requests.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
             return oResponse
         except:
             return None
@@ -204,17 +198,14 @@ def getIPs(cidr):
             iplist.append(bin2ip(ipPrefix+dec2bin(i, (32-subnet))))
     return iplist
 
-def verifyCVE_2018_1207(sIP, boolExploit = False, sProxy = None):
+def verifyCVE_2018_1207(sIP, boolExploit = False):
     ## TODO: Based on : https://github.com/KraudSecurity/Exploits/blob/master/CVE-2018-1207/CVE-2018-1207.py
     sURL = f'https://{sIP}/cgi-bin/login?LD_DEBUG=files'
     dicNewHeaders = dicHeaders
     dicNewHeaders['Accept'] = ''
     oSession = requests.Session()
     oSession.mount('https://', CustomHTTPAdapter())
-    if sProxy:
-        oResponse = oSession.get(sURL, verify=False, proxies={'https':sProxy}, headers = dicHeaders, timeout = iTimeout)
-    else:
-        oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
+    oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
     if 'calling init: /lib/' in oResponse.text:
         print(f'  [!!] {sIP} is definitely vulnerable and can be exploited: {sURL}')
     return
@@ -265,7 +256,6 @@ def main():
     parser = optparse.OptionParser(usage = sUsage)
     parser.add_option('--threads', '-t', metavar='INT', dest='threads', default = 64, help='Amount of threads. Default 64')
     parser.add_option('--scanvulns', '-s', dest='vulns', action='store_true', help='Check for common vulns.', default=False)
-    parser.add_option('--proxy', '-p', metavar='STRING', dest='proxy', help='HTTP proxy (e.g. 127.0.0.1:8080), optional')
     parser.add_option('--export', '-e', dest='export', action='store_true', help='Create list of addresses running iDRAC. Default False', default=False)
     parser.add_option('--verbose', '-v', dest='verbose', action='store_true', help='Verbosity. Default False', default=False)
     (options,args) = parser.parse_args()
@@ -283,7 +273,7 @@ def main():
             lstIPs = getIPs(args[0])
     oPool = ThreadPool(int(options.threads))
     print('[!] Scanning {} addresses using up to {} threads.'.format(len(lstIPs), options.threads))
-    oPool.map(fingerPrint, zip(lstIPs, repeat(options.verbose), repeat(options.proxy), repeat(options.vulns), repeat(options.export)))
+    oPool.map(fingerPrint, zip(lstIPs, repeat(options.verbose), repeat(options.vulns), repeat(options.export)))
     if options.export:
         writeFile(_lstToWrite, sExportFileName)
     return
