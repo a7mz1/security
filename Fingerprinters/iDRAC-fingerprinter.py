@@ -218,25 +218,20 @@ def getIPsFromFile(sFile):
             lstIPs.append(sIP)
     return lstIPs
 
-### Vuln checking based on buildnumbers
-def getVulns(sName, sVersion, sFWversion, sIP, sSystem): ##sHostname, 'iDRAC9 {}'.format(sLicense), sFWversion, sIP, sSystem
-    ##  sName = server-hostname
-    ##  sVersion = iDRAC 9 (optionally includes "Enterprise")
-    ##  sFWversion = 2.52.52.52
-    ##  sIP = 192.168.0.1
-    ##  sSystem = PowerEdge R630
-    ## CVE-2018-1207, vulnerable firmware iDRAC7 or iDRAC8, firmware < 2.52.52.52
-    sVuln = '  [!] ' + sIP + ' is vulnerable to CVE-2018-1207, Code Injection Vulnerability (RCE)'
+# Vulnerability checking based on version
+def getVulns(sName, sVersion, sFWversion, sIP, sSystem):
+    sVuln = '  [!] ' + sIP + ' is potentially vulnerable to CVE-2018-1207, Code Injection Vulnerability (RCE)'
     boolCVE20181207 = False
     if '8' in sVersion or '7' in sVersion:
-        if int(sFWversion.split('.')[0])>2:
-            return
-        elif int(sFWversion.split('.')[1])>52:
-            return
-        else: 
-            print(sVuln)
+        # For some reason, /session returns versioning numbers differently.
+        # For example, 2.52.52.52 is returned as 2.52.12.
+        # In the original version of this script, this caused the script to flag an iDRAC
+        # as vulnerable, even though the iDRAC was running version 2.52.52.52.
+        major, minor, patch = map(int, sFWversion.split('.'))
+        if (major, minor, patch) < (2, 52, 12):
             boolCVE20181207 = True
     if boolCVE20181207:
+        print(sVuln)
         verifyCVE_2018_1207(sIP, boolExploit=False)
     return
 
