@@ -55,12 +55,6 @@ def fingerPrint(listArgs):
             return oResponse
         except:
             return None
-    def getPageOrg(sURL):
-        try:
-            oResponse = requests.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
-            return oResponse
-        except:
-            return None
         
     def getBMCInfo(sResult):
         lstLines = sResult.split('\n')
@@ -76,7 +70,6 @@ def fingerPrint(listArgs):
 
     ## Currently only iDRAC 8 & iDRAC 9 supported
     sURL = 'https://' + sIP
-    #if boolVerbose: print(f'[!] Scanning URL {sURL}')
     ## iDRAC 6 attempt (no unauthenticated Firmware Version here)
     oResponse = getPage(sURL + '/login.html')
     if oResponse and oResponse.status_code == 200 and not 'idrac7' in oResponse.text.lower():
@@ -198,7 +191,7 @@ def getIPs(cidr):
             iplist.append(bin2ip(ipPrefix+dec2bin(i, (32-subnet))))
     return iplist
 
-def verifyCVE_2018_1207(sIP, boolExploit = False):
+def verifyCVE_2018_1207(sIP):
     ## TODO: Based on : https://github.com/KraudSecurity/Exploits/blob/master/CVE-2018-1207/CVE-2018-1207.py
     sURL = f'https://{sIP}/cgi-bin/login?LD_DEBUG=files'
     dicNewHeaders = dicHeaders
@@ -232,7 +225,7 @@ def getVulns(sName, sVersion, sFWversion, sIP, sSystem):
             boolCVE20181207 = True
     if boolCVE20181207:
         print(sVuln)
-        verifyCVE_2018_1207(sIP, boolExploit=False)
+        verifyCVE_2018_1207(sIP)
     return
 
 def writeFile(lstToWrite, sFilename):
@@ -254,7 +247,6 @@ def main():
     parser.add_option('--export', '-e', dest='export', action='store_true', help='Create list of addresses running iDRAC. Default False', default=False)
     parser.add_option('--verbose', '-v', dest='verbose', action='store_true', help='Verbosity. Default False', default=False)
     (options,args) = parser.parse_args()
-    #args.append('172.16.30.47')
     if not args or not len(args) == 1:
         sCIDR = input('[?] Please enter the subnet or IP to scan [192.168.50.0/24] : ')
         if sCIDR == '':
