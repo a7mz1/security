@@ -22,15 +22,17 @@ import requests
 import json
 import datetime
 import os
+from fake_useragent import UserAgent
 from multiprocessing.dummy import Pool as ThreadPool
 from itertools import repeat
 
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 requests.warnings.filterwarnings('ignore', category=DeprecationWarning) 
 
+userAgentLib = UserAgent()
 iTimeout = 10
 
-dicHeaders = {'User-Agent' : r'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36', 'Content-Type': 'application/json'}
+dicHeaders = {'User-Agent' : userAgentLib.random, 'Content-Type': 'application/json'}
 sExportFileName = '{}-iDRACs.txt'.format(datetime.datetime.now().strftime(r'%Y%m%d-%H%M%S'))
 _lstToWrite = []
 
