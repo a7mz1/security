@@ -45,7 +45,7 @@ class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
         super().init_poolmanager(*args, **kwargs, ssl_context=context)
 
 def fingerPrint(listArgs):
-    (idracIp, boolVerbose, boolVulns, boolExport) = listArgs
+    (idracIp, boolVulns, boolExport) = listArgs
     global _lstToWrite
     def getPage(idracUrl):
         reqSession = requests.Session()
@@ -97,8 +97,6 @@ def fingerPrint(listArgs):
             reqResponse = getPage(idracUrl + '/session?aimGetProp=hostname,gui_str_title_bar,OEMHostName,fwVersion,sysDesc')
             if reqResponse:
                 respJson = json.loads(reqResponse.text)['aimGetProp']
-                if boolVerbose:
-                    print(respJson)
                 idracHostname = respJson['hostname']
                 idracFwVersion = respJson['fwVersion']
                 idracSystem = respJson['sysDesc']
@@ -122,8 +120,6 @@ def fingerPrint(listArgs):
                 idracEndpoint = getBMCInfo(reqResult)
                 reqResponse = getPage(idracUrl + idracEndpoint)
                 respJson = json.loads(reqResponse.text)['Attributes']
-                if boolVerbose:
-                    print(respJson)
                 idracHostname = respJson['iDRACName']
                 if not 'FwVer' in respJson:
                     idracFwVersion = getFWViaRedfish(idracUrl)
@@ -241,7 +237,6 @@ def main():
     parser.add_option('--threads', '-t', metavar='INT', dest='threads', default = 64, help='Amount of threads. Default 64')
     parser.add_option('--scanvulns', '-s', dest='vulns', action='store_true', help='Check for common vulns.', default=False)
     parser.add_option('--export', '-e', dest='export', action='store_true', help='Create list of addresses running iDRAC. Default False', default=False)
-    parser.add_option('--verbose', '-v', dest='verbose', action='store_true', help='Verbosity. Default False', default=False)
     (options,args) = parser.parse_args()
     if not args or not len(args) == 1:
         addressInput = input('[?] Please enter the subnet or IP to scan [192.168.50.0/24] : ')
@@ -256,7 +251,7 @@ def main():
             lstIPs = getIPs(args[0])
     tPool = ThreadPool(int(options.threads))
     print(f'[!] Scanning {len(lstIPs)} addresses using up to {options.threads} threads.')
-    tPool.map(fingerPrint, zip(lstIPs, repeat(options.verbose), repeat(options.vulns), repeat(options.export)))
+    tPool.map(fingerPrint, zip(lstIPs, repeat(options.vulns), repeat(options.export)))
     if options.export:
         writeFile(_lstToWrite, exportFileName)
     return
