@@ -30,10 +30,10 @@ requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.
 requests.warnings.filterwarnings('ignore', category=DeprecationWarning) 
 
 userAgentLib = UserAgent()
-iTimeout = 10
+respTimeout = 10
 
-dicHeaders = {'User-Agent' : userAgentLib.random, 'Content-Type': 'application/json'}
-sExportFileName = '{}-iDRACs.txt'.format(datetime.datetime.now().strftime(r'%Y%m%d-%H%M%S'))
+reqHeaders = {'User-Agent' : userAgentLib.random, 'Content-Type': 'application/json'}
+exportFileName = f'{datetime.datetime.now().strftime(r'%Y%m%d-%H%M%S')}-iDRACs.txt'
 _lstToWrite = []
 
 class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
@@ -45,99 +45,97 @@ class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
         super().init_poolmanager(*args, **kwargs, ssl_context=context)
 
 def fingerPrint(listArgs):
-    (sIP, boolVerbose, boolVulns, boolExport) = listArgs
+    (idracIp, boolVerbose, boolVulns, boolExport) = listArgs
     global _lstToWrite
-    def getPage(sURL): ## Works on older SSLv3 systems
-        oSession = requests.Session()
-        oSession.mount('https://', CustomHTTPAdapter())
+    def getPage(idracUrl):
+        reqSession = requests.Session()
+        reqSession.mount('https://', CustomHTTPAdapter())
         try:
-            oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
-            return oResponse
+            reqResponse = reqSession.get(idracUrl, verify=False, headers = reqHeaders, timeout = respTimeout)
+            return reqResponse
         except:
             return None
         
-    def getBMCInfo(sResult):
-        lstLines = sResult.split('\n')
-        for sLine in lstLines:
-            if 'var BMC_INFO' in sLine: return sLine.split('"')[1]
+    def getBMCInfo(reqResult):
+        lstLines = reqResult.split('\n')
+        for line in lstLines:
+            if 'var BMC_INFO' in line: return line.split('"')[1]
         return ''
 
-    def getFWViaRedfish(sURL):
-        ## This endpoints requires auth: '/redfish/v1/Managers/iDRAC.Embedded.1/Attributes?$select=Info.*'
-        oResponse = getPage(sURL + '/redfish/v1/Registries/ManagerAttributeRegistry/ManagerAttributeRegistry.v1_0_0.json')
-        oJson = json.loads(oResponse.text)
-        return oJson['SupportedSystems'][0]['FirmwareVersion']
+    def getFWViaRedfish(idracUrl):
+        reqResponse = getPage(idracUrl + '/redfish/v1/Registries/ManagerAttributeRegistry/ManagerAttributeRegistry.v1_0_0.json')
+        respJson = json.loads(reqResponse.text)
+        return respJson['SupportedSystems'][0]['FirmwareVersion']
 
-    ## Currently only iDRAC 8 & iDRAC 9 supported
-    sURL = 'https://' + sIP
-    ## iDRAC 6 attempt (no unauthenticated Firmware Version here)
-    oResponse = getPage(sURL + '/login.html')
-    if oResponse and oResponse.status_code == 200 and not 'idrac7' in oResponse.text.lower():
-        sResult = oResponse.text
-        if 'idrac6' in sResult.lower():
-            sFWversion = 'Unknown'
-            sSystem = sHostname = sLicense = ''
-            for sLine in sResult.split('\n'):
-                if 'var tmphostname' in sLine.lower(): 
-                    sHostname = sLine.split('"')[1].strip()
-                elif 'integrated dell remote access controller 6' in sLine.lower(): 
-                    sLicense = sLine.split(r'- ')[1].split(r'<')[0]
+    idracUrl = 'https://' + idracIp
+    # iDRAC 6 attempt (no unauthenticated Firmware Version here)
+    reqResponse = getPage(idracUrl + '/login.html')
+    if reqResponse and reqResponse.status_code == 200 and not 'idrac7' in reqResponse.text.lower():
+        reqResult = reqResponse.text
+        if 'idrac6' in reqResult.lower():
+            idracFwVersion = 'Unknown'
+            idracSystem = idracHostname = idracLicense = ''
+            for line in reqResult.split('\n'):
+                if 'var tmphostname' in line.lower(): 
+                    idracHostname = line.split('"')[1].strip()
+                elif 'integrated dell remote access controller 6' in line.lower(): 
+                    idracLicense = line.split(r'- ')[1].split(r'<')[0]
             if boolExport:
-                _lstToWrite.append(f'{sIP};iDRAC6 {sLicense};{sSystem};{sHostname};{sFWversion}\n')
-            print('[+] {}: {} (iDRAC6 {}, Firmware {})'.format(sIP, sHostname, sLicense, sFWversion))
+                _lstToWrite.append(f'{idracIp};iDRAC6 {idracLicense};{idracSystem};{idracHostname};{idracFwVersion}\n')
+            print(f'[+] {idracIp}: {idracHostname} (iDRAC6 {idracLicense}, Firmware {idracFwVersion})')
         return
-    ## iDRAC 7 & 8 attempt
-    oResponse = getPage(sURL + '/data?get=prodServerGen')
-    if oResponse and oResponse.status_code == 200:
+    # iDRAC 7 & 8 attempt
+    reqResponse = getPage(idracUrl + '/data?get=prodServerGen')
+    if reqResponse and reqResponse.status_code == 200:
         try:
-            if '12g' in oResponse.text.lower():
-                sIDRACVersion = 'iDRAC7'
+            if '12g' in reqResponse.text.lower():
+                idracVersion = 'iDRAC7'
             else:
-                sIDRACVersion = 'iDRAC8'
-            oResponse = getPage(sURL + '/data?get=prodClassName')
-            sLicense = oResponse.text.split(r'<prodClassName>')[1].split(r'</prodClassName>')[0]
-            oResponse = getPage(sURL + '/session?aimGetProp=hostname,gui_str_title_bar,OEMHostName,fwVersion,sysDesc')
-            if oResponse:
-                oJson = json.loads(oResponse.text)['aimGetProp']
+                idracVersion = 'iDRAC8'
+            reqResponse = getPage(idracUrl + '/data?get=prodClassName')
+            idracLicense = reqResponse.text.split(r'<prodClassName>')[1].split(r'</prodClassName>')[0]
+            reqResponse = getPage(idracUrl + '/session?aimGetProp=hostname,gui_str_title_bar,OEMHostName,fwVersion,sysDesc')
+            if reqResponse:
+                respJson = json.loads(reqResponse.text)['aimGetProp']
                 if boolVerbose:
-                    print(oJson)
-                sHostname = oJson['hostname']
-                sFWversion = oJson['fwVersion']
-                sSystem = oJson['sysDesc']
+                    print(respJson)
+                idracHostname = respJson['hostname']
+                idracFwVersion = respJson['fwVersion']
+                idracSystem = respJson['sysDesc']
                 if boolExport:
-                    _lstToWrite.append(f'{sIP};{sIDRACVersion} {sLicense};{sSystem};{sHostname};{sFWversion}\n')
-                print('[+] {}: {} ({}, {} {}, Firmware v{})'.format(sIP, sHostname, sSystem, sIDRACVersion, sLicense, sFWversion))
+                    _lstToWrite.append(f'{idracIp};{idracVersion} {idracLicense};{idracSystem};{idracHostname};{idracFwVersion}\n')
+                print(f'[+] {idracIp}: {idracHostname} ({idracSystem}, {idracVersion} {idracLicense}, Firmware v{idracFwVersion})')
                 if boolVulns:
-                    getVulns(sHostname, '{} {}'.format(sIDRACVersion, sLicense), sFWversion, sIP, sSystem)
+                    getVulns(idracVersion, idracFwVersion, idracIp)
                 return
         except:
             return
 
-    ## iDRAC 9 attempt
-    oResponse = getPage(sURL + '/restgui/locale/strings/locale_str_en.json')
-    if oResponse and oResponse.status_code == 200:
+    # iDRAC 9 attempt
+    reqResponse = getPage(idracUrl + '/restgui/locale/strings/locale_str_en.json')
+    if reqResponse and reqResponse.status_code == 200:
         try:
-            oJson = json.loads(oResponse.text)
-            if oJson['app_title'] == 'iDRAC9':
-                oResponse = getPage(sURL + '/restgui/js/services/resturi.js')
-                sResult = oResponse.text
-                sEndpoint = getBMCInfo(sResult)
-                oResponse = getPage(sURL + sEndpoint)
-                oJson = json.loads(oResponse.text)['Attributes']
+            respJson = json.loads(reqResponse.text)
+            if respJson['app_title'] == 'iDRAC9':
+                reqResponse = getPage(idracUrl + '/restgui/js/services/resturi.js')
+                reqResult = reqResponse.text
+                idracEndpoint = getBMCInfo(reqResult)
+                reqResponse = getPage(idracUrl + idracEndpoint)
+                respJson = json.loads(reqResponse.text)['Attributes']
                 if boolVerbose:
-                    print(oJson)
-                sHostname = oJson['iDRACName']
-                if not 'FwVer' in oJson:
-                    sFWversion = getFWViaRedfish(sURL)
+                    print(respJson)
+                idracHostname = respJson['iDRACName']
+                if not 'FwVer' in respJson:
+                    idracFwVersion = getFWViaRedfish(idracUrl)
                 else:
-                    sFWversion = oJson['FwVer']
-                sSystem = oJson['SystemModelName']
-                sLicense = oJson['License']
+                    idracFwVersion = respJson['FwVer']
+                idracSystem = respJson['SystemModelName']
+                idracLicense = respJson['License']
                 if boolExport:
-                    _lstToWrite.append(f'{sIP};iDRAC9 {sLicense};{sSystem};{sHostname};{sFWversion}\n')
-                print('[+] {}: {} ({}, iDRAC9 {}, Firmware v{})'.format(sIP, sHostname, sSystem, sLicense, sFWversion))
-                if boolVulns:
-                    getVulns(sHostname, 'iDRAC9 {}'.format(sLicense), sFWversion, sIP, sSystem)
+                    _lstToWrite.append(f'{idracIp};iDRAC9 {idracLicense};{idracSystem};{idracHostname};{idracFwVersion}\n')
+                print('[+] {}: {} ({}, iDRAC9 {}, Firmware v{})'.format(idracIp, idracHostname, idracSystem, idracLicense, idracFwVersion))
+                # if boolVulns: (no iDRAC9 vulnerabilities... yet.)
+                #     getVulns(idracHostname, 'iDRAC9 {}'.format(idracLicense), idracFwVersion, idracIp, idracSystem)
                 return
         except:
             return
@@ -191,78 +189,76 @@ def getIPs(cidr):
             iplist.append(bin2ip(ipPrefix+dec2bin(i, (32-subnet))))
     return iplist
 
-def verifyCVE_2018_1207(sIP):
-    ## TODO: Based on : https://github.com/KraudSecurity/Exploits/blob/master/CVE-2018-1207/CVE-2018-1207.py
-    sURL = f'https://{sIP}/cgi-bin/login?LD_DEBUG=files'
-    dicNewHeaders = dicHeaders
-    dicNewHeaders['Accept'] = ''
-    oSession = requests.Session()
-    oSession.mount('https://', CustomHTTPAdapter())
-    oResponse = oSession.get(sURL, verify=False, headers = dicHeaders, timeout = iTimeout)
-    if 'calling init: /lib/' in oResponse.text:
-        print(f'  [!!] {sIP} is definitely vulnerable and can be exploited: {sURL}')
+def verifyCVE_2018_1207(idracIp):
+    idracUrl = f'https://{idracIp}/cgi-bin/login?LD_DEBUG=files'
+    reqNewHeaders = reqHeaders
+    reqNewHeaders['Accept'] = ''
+    reqSession = requests.Session()
+    reqSession.mount('https://', CustomHTTPAdapter())
+    reqResponse = reqSession.get(idracUrl, verify=False, headers = reqHeaders, timeout = respTimeout)
+    if 'calling init: /lib/' in reqResponse.text:
+        print(f'  [!!] {idracIp} is definitely vulnerable and can be exploited: {idracUrl}')
     return
 
 def getIPsFromFile(sFile):
     lstLines = open(sFile,'r').read().splitlines()
     lstIPs = []
-    for sLine in lstLines: ## Line can be an IP or a CIDR
-        for sIP in getIPs(sLine):
-            lstIPs.append(sIP)
+    for line in lstLines: # Line can be an IP or a CIDR
+        for idracIp in getIPs(line):
+            lstIPs.append(idracIp)
     return lstIPs
 
 # Vulnerability checking based on version
-def getVulns(sName, sVersion, sFWversion, sIP, sSystem):
-    sVuln = '  [!] ' + sIP + ' is potentially vulnerable to CVE-2018-1207, Code Injection Vulnerability (RCE)'
+def getVulns(idracVersion, idracFwVersion, idracIp):
+    vulnMessage = '  [!] ' + idracIp + ' is potentially vulnerable to CVE-2018-1207, Code Injection Vulnerability (RCE)'
     boolCVE20181207 = False
-    if '8' in sVersion or '7' in sVersion:
+    if '8' in idracVersion or '7' in idracVersion:
         # For some reason, /session returns versioning numbers differently.
         # For example, 2.52.52.52 is returned as 2.52.12.
         # In the original version of this script, this caused the script to flag an iDRAC
         # as vulnerable, even though the iDRAC was running version 2.52.52.52.
-        major, minor, patch = map(int, sFWversion.split('.'))
+        major, minor, patch = map(int, idracFwVersion.split('.'))
         if (major, minor, patch) < (2, 52, 12):
             boolCVE20181207 = True
     if boolCVE20181207:
-        print(sVuln)
-        verifyCVE_2018_1207(sIP)
+        print(vulnMessage)
+        verifyCVE_2018_1207(idracIp)
     return
 
-def writeFile(lstToWrite, sFilename):
-    with open(sFilename,'w') as oFile:
-        for sLine in lstToWrite:
-            oFile.write(sLine+'\n')
-        oFile.close()
-    print('[+] Created file {} containing all {} responsive IP addresses, feel free to run the IPMI scanner.'.format(sFilename, len(lstToWrite)))
+def writeFile(lstToWrite, exportFileName):
+    with open(exportFileName,'w') as exportObject:
+        for line in lstToWrite:
+            exportObject.write(line+'\n')
+        exportObject.close()
+    print(f'[+] Created file {exportFileName} containing all {len(lstToWrite)} responsive IP addresses, feel free to run the IPMI scanner.')
     return
 
 def main():
-    sUsage = ('usage: %prog [options] SUBNET/ADDRESS/FILE\n'
+    fingerprinterUsage = ('usage: %prog [options] SUBNET/ADDRESS/FILE\n'
               'This script performs enumeration of iDRAC systems on a given subnet or IP\n'
-              'When provided with the --scanvulns parameter it spits out critical vulns based on the Firmware version.\n\n'
-              'This script is 100% OPSEC safe (unless you decide to exploit)!')
-    parser = optparse.OptionParser(usage = sUsage)
+              'When provided with the --scanvulns parameter it spits out critical vulns based on the Firmware version.')
+    parser = optparse.OptionParser(usage = fingerprinterUsage)
     parser.add_option('--threads', '-t', metavar='INT', dest='threads', default = 64, help='Amount of threads. Default 64')
     parser.add_option('--scanvulns', '-s', dest='vulns', action='store_true', help='Check for common vulns.', default=False)
     parser.add_option('--export', '-e', dest='export', action='store_true', help='Create list of addresses running iDRAC. Default False', default=False)
     parser.add_option('--verbose', '-v', dest='verbose', action='store_true', help='Verbosity. Default False', default=False)
     (options,args) = parser.parse_args()
     if not args or not len(args) == 1:
-        sCIDR = input('[?] Please enter the subnet or IP to scan [192.168.50.0/24] : ')
-        if sCIDR == '':
-            sCIDR = '192.168.50.0/24'
-        lstIPs = getIPs(sCIDR)
+        addressInput = input('[?] Please enter the subnet or IP to scan [192.168.50.0/24] : ')
+        if addressInput == '':
+            addressInput = '192.168.50.0/24'
+        lstIPs = getIPs(addressInput)
     else:
         if os.path.isfile(args[0]):
-            print('[+] Parsing file {} for IP addresses/networks.'.format(args[0]))
+            print(f'[+] Parsing file {args[0]} for IP addresses/networks.')
             lstIPs = getIPsFromFile(args[0])
         else: 
             lstIPs = getIPs(args[0])
-    oPool = ThreadPool(int(options.threads))
-    print('[!] Scanning {} addresses using up to {} threads.'.format(len(lstIPs), options.threads))
-    oPool.map(fingerPrint, zip(lstIPs, repeat(options.verbose), repeat(options.vulns), repeat(options.export)))
+    tPool = ThreadPool(int(options.threads))
+    print(f'[!] Scanning {len(lstIPs)} addresses using up to {options.threads} threads.')
+    tPool.map(fingerPrint, zip(lstIPs, repeat(options.verbose), repeat(options.vulns), repeat(options.export)))
     if options.export:
-        writeFile(_lstToWrite, sExportFileName)
+        writeFile(_lstToWrite, exportFileName)
     return
 
 if __name__ == '__main__':
