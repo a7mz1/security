@@ -45,7 +45,7 @@ class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
         super().init_poolmanager(*args, **kwargs, ssl_context=context)
 
 def fingerPrint(listArgs):
-    (idracIp, boolVulns, boolExport) = listArgs
+    (idracIp, boolVulns, boolExport, boolExtend) = listArgs
     global _lstToWrite
     def getPage(idracUrl):
         reqSession = requests.Session()
@@ -104,7 +104,7 @@ def fingerPrint(listArgs):
                     _lstToWrite.append(f'{idracIp};{idracVersion} {idracLicense};{idracSystem};{idracHostname};{idracFwVersion}\n')
                 print(f'[+] {idracIp}: {idracHostname} ({idracSystem}, {idracVersion} {idracLicense}, Firmware v{idracFwVersion})')
                 if boolVulns:
-                    getVulns(idracVersion, idracFwVersion, idracIp)
+                    getVulns(idracVersion, idracFwVersion, idracIp, boolExtend)
                 return
         except:
             return
@@ -185,7 +185,7 @@ def getIPs(cidr):
             iplist.append(bin2ip(ipPrefix+dec2bin(i, (32-subnet))))
     return iplist
 
-def verifyCVE_2018_1207(idracIp):
+def verifyCVE_2018_1207(idracIp, boolExtend):
     idracUrl = f'https://{idracIp}/cgi-bin/login?LD_DEBUG=files'
     reqNewHeaders = reqHeaders
     reqNewHeaders['Accept'] = ''
@@ -205,7 +205,7 @@ def getIPsFromFile(sFile):
     return lstIPs
 
 # Vulnerability checking based on version
-def getVulns(idracVersion, idracFwVersion, idracIp):
+def getVulns(idracVersion, idracFwVersion, idracIp, boolExtend):
     vulnMessage = '  [!] ' + idracIp + ' is potentially vulnerable to CVE-2018-1207, Code Injection Vulnerability (RCE)'
     boolCVE20181207 = False
     if '8' in idracVersion or '7' in idracVersion:
@@ -223,7 +223,7 @@ def getVulns(idracVersion, idracFwVersion, idracIp):
             boolCVE20181207 = True
     if boolCVE20181207:
         print(vulnMessage)
-        verifyCVE_2018_1207(idracIp)
+        verifyCVE_2018_1207(idracIp, boolExtend)
     return
 
 def writeFile(lstToWrite, exportFileName):
@@ -239,6 +239,7 @@ def main():
               'This script performs enumeration of iDRAC systems on a given subnet or IP\n'
               'When provided with the --scanvulns parameter it spits out critical vulns based on the Firmware version.')
     parser = optparse.OptionParser(usage = fingerprinterUsage)
+    parser.add_option('--extend', '-x', dest='extend', action='store_true', help='Makes the tool less boring. 😉', default=False)
     parser.add_option('--threads', '-t', metavar='INT', dest='threads', default = 64, help='Amount of threads. Default 64')
     parser.add_option('--scanvulns', '-s', dest='vulns', action='store_true', help='Check for common vulns.', default=False)
     parser.add_option('--export', '-e', dest='export', action='store_true', help='Create list of addresses running iDRAC. Default False', default=False)
@@ -256,7 +257,7 @@ def main():
             lstIPs = getIPs(args[0])
     tPool = ThreadPool(int(options.threads))
     print(f'[!] Scanning {len(lstIPs)} addresses using up to {options.threads} threads.')
-    tPool.map(fingerPrint, zip(lstIPs, repeat(options.vulns), repeat(options.export)))
+    tPool.map(fingerPrint, zip(lstIPs, repeat(options.vulns), repeat(options.export), repeat(options.extend)))
     if options.export:
         writeFile(_lstToWrite, exportFileName)
     return
