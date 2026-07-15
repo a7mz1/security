@@ -213,6 +213,11 @@ def getVulns(idracVersion, idracFwVersion, idracIp):
         # For example, 2.52.52.52 is returned as 2.52.12.
         # In the original version of this script, this caused the script to flag an iDRAC
         # as vulnerable, even though the iDRAC was running version 2.52.52.52.
+        if idracFwVersion == "null":
+            # A lot of OEMR iDRACs, if not all of them, return the firmware
+            # version as "null". They usually run a vulnerable version,
+            # so it won't hurt to check.
+            boolCVE20181207 = True 
         major, minor, patch = map(int, idracFwVersion.split('.'))
         if (major, minor, patch) < (2, 52, 12):
             boolCVE20181207 = True
