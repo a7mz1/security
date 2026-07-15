@@ -104,7 +104,7 @@ def fingerPrint(listArgs):
                     _lstToWrite.append(f'{idracIp};{idracVersion} {idracLicense};{idracSystem};{idracHostname};{idracFwVersion}\n')
                 print(f'[+] {idracIp}: {idracHostname} ({idracSystem}, {idracVersion} {idracLicense}, Firmware v{idracFwVersion})')
                 if boolVulns:
-                    getVulns(idracVersion, idracFwVersion, idracIp, boolExtend)
+                    getVulns(idracVersion, idracFwVersion, idracIp, idracSystem, boolExtend)
                 return
         except:
             return
@@ -185,7 +185,7 @@ def getIPs(cidr):
             iplist.append(bin2ip(ipPrefix+dec2bin(i, (32-subnet))))
     return iplist
 
-def verifyCVE_2018_1207(idracIp, boolExtend):
+def verifyCVE_2018_1207(idracIp, idracSystem, boolExtend):
     idracUrl = f'https://{idracIp}/cgi-bin/login?LD_DEBUG=files'
     reqNewHeaders = reqHeaders
     reqNewHeaders['Accept'] = ''
@@ -193,7 +193,16 @@ def verifyCVE_2018_1207(idracIp, boolExtend):
     reqSession.mount('https://', CustomHTTPAdapter())
     reqResponse = reqSession.get(idracUrl, verify=False, headers = reqHeaders, timeout = respTimeout)
     if 'calling init: /lib/' in reqResponse.text:
-        print(f'  [!!] {idracIp} is definitely vulnerable and can be exploited: {idracUrl}')
+        if boolExtend:
+            try:
+                idracCountry = requests.get(f'https://ipinfo.io/{idracIp}').json().get("country")
+                if idracCountry == None:
+                    idracCountry = "??"
+            except:
+                idracCountry = "??"
+            print(f'  [!!] {idracIp} ({idracCountry}, {idracSystem}) is definitely vulnerable and can be exploited.')
+        else:
+            print(f'  [!!] {idracIp} is definitely vulnerable and can be exploited: {idracUrl}')
     return
 
 def getIPsFromFile(sFile):
@@ -205,7 +214,7 @@ def getIPsFromFile(sFile):
     return lstIPs
 
 # Vulnerability checking based on version
-def getVulns(idracVersion, idracFwVersion, idracIp, boolExtend):
+def getVulns(idracVersion, idracFwVersion, idracIp, idracSystem, boolExtend):
     vulnMessage = '  [!] ' + idracIp + ' is potentially vulnerable to CVE-2018-1207, Code Injection Vulnerability (RCE)'
     boolCVE20181207 = False
     if '8' in idracVersion or '7' in idracVersion:
@@ -223,7 +232,7 @@ def getVulns(idracVersion, idracFwVersion, idracIp, boolExtend):
             boolCVE20181207 = True
     if boolCVE20181207:
         print(vulnMessage)
-        verifyCVE_2018_1207(idracIp, boolExtend)
+        verifyCVE_2018_1207(idracIp, idracSystem, boolExtend)
     return
 
 def writeFile(lstToWrite, exportFileName):
